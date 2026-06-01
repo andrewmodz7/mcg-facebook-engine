@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+asyncpg
+sqlalchemy[asyncio]>=2.0
+alembic
+anthropic>=0.40.0
+python-dotenv
+httpx
+pydantic
