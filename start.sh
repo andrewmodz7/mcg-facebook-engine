@@ -16,5 +16,5 @@ if ! kill -0 $FASTAPI_PID 2>/dev/null; then
   exit 1
 fi
 
-echo "Starting Next.js on port $PORT..."
-cd /app/frontend && npm start
+echo "Starting Next.js on port $PORT and host 0.0.0.0..."
+cd /app/frontend && npm start -- -H 0.0.0.0 -p $PORT
