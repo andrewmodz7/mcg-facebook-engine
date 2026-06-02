@@ -1,27 +1,26 @@
 #!/bin/bash
 set -e
 
-# pip install --break-system-packages puts binaries here in the Nixpacks runtime.
-# Add both common locations to PATH so alembic/uvicorn are findable.
-export PATH="/root/.local/bin:$HOME/.local/bin:$PATH"
+# Nix-managed Python installs binaries in unpredictable nix-store paths.
+# Find the python3 binary's directory and add it to PATH so pip-installed
+# tools (alembic, uvicorn) are on PATH.
+PYTHON_BIN_DIR=$(dirname "$(which python3)")
+export PATH="/root/.local/bin:$HOME/.local/bin:$PYTHON_BIN_DIR:$PATH"
 
-# Diagnostic: confirm tools are findable before we try to use them.
+# Diagnostic — visible in deploy logs
 echo "PATH: $PATH"
+echo "python3: $(which python3 2>&1 || echo 'NOT FOUND')"
 echo "alembic: $(which alembic 2>&1 || echo 'NOT FOUND')"
 echo "uvicorn: $(which uvicorn 2>&1 || echo 'NOT FOUND')"
 
-# If alembic still isn't on PATH, find it the hard way and put it there.
+# Fail loudly if critical tools missing
 if ! command -v alembic &> /dev/null; then
-  echo "alembic not on PATH; searching..."
-  ALEMBIC_PATH=$(find / -name "alembic" -type f -executable 2>/dev/null | grep -v proc | head -1)
-  if [ -n "$ALEMBIC_PATH" ]; then
-    ALEMBIC_DIR=$(dirname "$ALEMBIC_PATH")
-    export PATH="$ALEMBIC_DIR:$PATH"
-    echo "Found alembic at $ALEMBIC_PATH, added $ALEMBIC_DIR to PATH"
-  else
-    echo "ERROR: alembic not found anywhere in container. Build install step did not produce expected binaries."
-    exit 1
-  fi
+  echo "ERROR: alembic not findable after PATH fix"
+  exit 1
+fi
+if ! command -v uvicorn &> /dev/null; then
+  echo "ERROR: uvicorn not findable after PATH fix"
+  exit 1
 fi
 
 echo "Running database migrations..."

@@ -2,6 +2,7 @@ fastapi
 uvicorn
 asyncpg
 sqlalchemy[asyncio]>=2.0
+greenlet>=3.0.0
 alembic
 anthropic>=0.40.0
 python-dotenv
