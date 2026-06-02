@@ -90,36 +90,39 @@ cd backend && alembic upgrade head
 
 ## Deployment (Railway)
 
-The repo runs as **two Railway services off the same GitHub repo**, distinguished
-by their build/start commands (provided by `railway.toml` at the repo root for
-the backend and `frontend/railway.toml` for the frontend).
+The repo runs as a **single Railway service** that serves both the Next.js
+frontend and the FastAPI backend from the **same container**. Nixpacks installs
+both runtimes and dependencies (see the root `nixpacks.toml`), and a startup
+script (`start.sh`) launches both processes.
 
-1. **Provision two services from this repo.**
-   - **Backend service:** uses the root `railway.toml` — installs
-     `backend/requirements.txt` and starts `uvicorn app.main:app` on `$PORT`,
-     with the health check at `/health`.
-   - **Frontend service:** point its config path at `frontend/railway.toml` —
-     it runs `npm install && npm run build`, then `npm start`.
-   - Add the Railway **Postgres** plugin and share its `DATABASE_URL` with the
-     backend service.
+**Architecture**
 
-2. **Set env vars per service.**
-   - **Backend:** `DATABASE_URL`, `APIFY_TOKEN`, `ANTHROPIC_API_KEY`,
-     `MARCUS_PASSWORD`, `ANDREW_PASSWORD`. `FRONTEND_ORIGIN` is optional now
-     (the proxy keeps the browser same-origin) — leave it unset/`*`.
-   - **Frontend:** `BACKEND_URL`.
+- **Next.js** runs on `$PORT` (Railway-assigned, public-facing). The browser
+  only ever talks to this origin.
+- **FastAPI/uvicorn** runs on internal `localhost:8000` (bound to `127.0.0.1`,
+  not exposed publicly).
+- `/api/*` and `/health` requests hit Next.js and are proxied internally to
+  `http://localhost:8000` via the Next.js rewrite in `next.config.mjs`
+  (`BACKEND_URL` defaults to `http://localhost:8000`, which now serves both
+  local dev and Railway production since the backend lives in the same
+  container).
+- `start.sh` runs Alembic migrations, then launches uvicorn as a background
+  process and `npm start` in the foreground. When the container dies (Railway
+  restart), both processes die together as one process group.
 
-3. **Point the frontend at the backend.** The frontend proxies `/api/*` and
-   `/health` to the backend via a Next.js rewrite (`next.config.mjs`), so the
-   browser only ever talks to the frontend origin — no cross-origin Basic Auth
-   prompt and no CORS. Set `BACKEND_URL` on the frontend service to the
-   backend's **Railway internal URL** (e.g. `http://backend.railway.internal:8000`)
-   so the two services talk over Railway's private network. `BACKEND_URL` is
-   read server-side at request time (it is *not* a `NEXT_PUBLIC_*` var and not
-   baked into the build), so a restart is enough — no rebuild required.
+1. **Provision one service from this repo.** Nixpacks auto-detects the root
+   `nixpacks.toml`, installs Python 3.11 + Node 20, installs
+   `backend/requirements.txt` and `frontend` deps, builds the Next.js
+   production bundle, and starts everything via `bash start.sh`.
+   Add the Railway **Postgres** plugin and share its `DATABASE_URL` with the
+   service.
 
-4. **Run migrations** against the production database once after first deploy:
-   `cd backend && alembic upgrade head`.
+2. **Set env vars on the service:** `DATABASE_URL`, `APIFY_TOKEN`,
+   `ANTHROPIC_API_KEY`, `MARCUS_PASSWORD`, `ANDREW_PASSWORD`.
+
+3. **Migrations run automatically** on every startup via `start.sh`
+   (`alembic upgrade head`) before any traffic is served — no manual step
+   needed after deploy.
 
 ### Auth
 
