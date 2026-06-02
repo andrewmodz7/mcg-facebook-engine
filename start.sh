@@ -3,12 +3,12 @@ set -e
 
 # Apply migrations against the live DB before serving any traffic.
 echo "Running database migrations..."
-cd /app/backend && /opt/venv/bin/alembic upgrade head
+cd /app/backend && alembic upgrade head
 cd /app
 
 # Start FastAPI on port 8000 in the background (internal only)
 echo "Starting FastAPI on port 8000..."
-cd /app/backend && /opt/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+cd /app/backend && uvicorn app.main:app --host 127.0.0.1 --port 8000 &
 FASTAPI_PID=$!
 
 # Give FastAPI 3 seconds to start before launching Next.js
